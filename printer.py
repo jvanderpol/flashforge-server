@@ -47,19 +47,6 @@ class Printer:
   def get_camera_stream(self):
     return self._camera_stream
 
-  def _call_with_retry(self, retried):
-    sleeps = [.1, .25, .75]
-    while True:
-      try:
-        return retried()
-      except Exception as e:
-        if not sleeps:
-          raise e
-        time.sleep(sleeps.pop())
-
-    for sleep in [0, 100, 250, 750]:
-      time.sleep(sleep)
-
   def _address(self):
     return {'ip': self._ip, 'port': 8899}
 
@@ -290,17 +277,7 @@ class CameraStream:
   def start_stream(self, subscriber_queue):
     with self._lock:
       if not self._camera_connection:
-        try:
-          self._camera_connection = http.client.HTTPConnection(self._ip, 8080)
-          self._camera_connection.request("GET", "/?action=stream")
-          self._camera_response = self._camera_connection.getresponse()
-          self._reading_thread = threading.Thread(
-              target=self.consume_camera_bytes,
-          )
-          self._reading_thread.start()
-        except Exception as e:
-          self._cleanup()
-          raise Exception('Error setting up camera connection') from e
+        self._connect()
       self._queues.append(subscriber_queue)
 
       return self._camera_response.headers
@@ -321,6 +298,26 @@ class CameraStream:
         self._pending_cleanup = threading.Timer(2, maybe_cleanup)
         self._pending_cleanup.start()
 
+  def reset_stream(self):
+    with self._lock:
+      self._cleanup()
+      _call_with_retry(self._connect)
+
+  def _connect(self):
+    if self._camera_connection:
+      raise Exception('Already connected')
+    try:
+      self._camera_connection = http.client.HTTPConnection(self._ip, 8080)
+      self._camera_connection.request("GET", "/?action=stream")
+      self._camera_response = self._camera_connection.getresponse()
+      self._reading_thread = threading.Thread(
+          target=self.consume_camera_bytes,
+      )
+      self._reading_thread.start()
+    except Exception as e:
+      self._cleanup()
+      raise Exception('Error setting up camera connection') from e
+
   def _cleanup(self):
     try:
       self._reader_thread_shutting_down.set()
@@ -336,4 +333,18 @@ class CameraStream:
       self._reader_thread_shutting_down.clear()
     except:
       logging.exception('error cleaning up connection') 
+  
+def _call_with_retry(retried):
+  sleeps = [.1, .25, .75]
+  while True:
+    try:
+      return retried()
+    except Exception as e:
+      if not sleeps:
+        raise e
+      time.sleep(sleeps.pop())
+
+  for sleep in [0, 100, 250, 750]:
+    time.sleep(sleep)
+
 

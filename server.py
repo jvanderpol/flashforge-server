@@ -33,16 +33,17 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   def __init__(self, *args, **kwargs):
     self._handlers = {
         '/': self._dashboard_html,
+        '/abort': self._abort,
         '/dashboard': self._dashboard_html,
-        '/dashboard.js': self._dashboard_js,
         '/dashboard.css': self._dashboard_css,
+        '/dashboard.js': self._dashboard_js,
         '/favicon.svg': self._favicon,
         '/handlers': self._handlers,
         '/head_position': self._head_position,
         '/info': self._info,
         '/pause': self._pause,
-        '/abort': self._abort,
         '/progress': self._progress,
+        '/reset_stream': self._reset_stream,
         '/status': self._status,
         '/stream': self._stream,
         '/temp': self._temp,
@@ -104,7 +105,6 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     return ''
 
   def _stream(self):
-    ip = self._get_ip()
     subscriber_queue = queue.Queue()
     stream = self._get_printer().get_camera_stream()
     try:
@@ -120,6 +120,11 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
         print('client disconnected')
     finally:
       stream.stop_stream(subscriber_queue)
+
+  @simple_handler()
+  def _reset_stream(self):
+    self._get_printer().get_camera_stream().reset_stream()
+    return ''
   
   def _dashboard_html(self):
     self._send_file('static/dashboard.html', 'text/html')
