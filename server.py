@@ -32,8 +32,10 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
 
   def __init__(self, *args, **kwargs):
     self._handlers = {
-        '/': self._dashboard,
-        '/dashboard': self._dashboard,
+        '/': self._dashboard_html,
+        '/dashboard': self._dashboard_html,
+        '/dashboard.js': self._dashboard_js,
+        '/dashboard.css': self._dashboard_css,
         '/favicon.svg': self._favicon,
         '/handlers': self._handlers,
         '/head_position': self._head_position,
@@ -119,8 +121,14 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     finally:
       stream.stop_stream(subscriber_queue)
   
-  def _dashboard(self):
+  def _dashboard_html(self):
     self._send_file('static/dashboard.html', 'text/html')
+
+  def _dashboard_js(self):
+    self._send_file('static/dashboard.js', 'text/javascript')
+
+  def _dashboard_css(self):
+    self._send_file('static/dashboard.css', 'text/css')
 
   def _favicon(self):
     self._send_file('static/favicon.svg', 'image/svg+xml')
