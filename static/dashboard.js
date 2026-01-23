@@ -4,27 +4,28 @@ function getIp() {
 }
 
 async function refreshStream() {
-  document.getElementById('printer-cam').src = `stream?ip=${getIp()}&?t=${new Date().getTime()}`;
+  document.getElementById('printer-cam').src =
+    `stream?ip=${getIp()}&?t=${new Date().getTime()}`;
 }
 
 async function updateDashboard() {
   const ip = getIp();
   const nozzleTempCurrent = document.getElementById('nozzle-temp-current');
   const nozzleTempTarget = document.getElementById('nozzle-temp-target');
-  const bedTempCurrent = document.getElementById('bed-temp-current')
-  const bedTempTarget = document.getElementById('bed-temp-target')
-  const tempResponse = await fetch(`temp?ip=${ip}`)
+  const bedTempCurrent = document.getElementById('bed-temp-current');
+  const bedTempTarget = document.getElementById('bed-temp-target');
+  const tempResponse = await fetch(`temp?ip=${ip}`);
   if (tempResponse.ok) {
     const temp = await tempResponse.json();
-    nozzleTempCurrent.innerText = temp.nozzle.current
+    nozzleTempCurrent.innerText = temp.nozzle.current;
     nozzleTempTarget.innerText = temp.nozzle.target || '--';
-    bedTempCurrent.innerText = temp.bed.current
+    bedTempCurrent.innerText = temp.bed.current;
     bedTempTarget.innerText = temp.bed.target || '--';
   } else {
-    nozzleTempCurrent.innerText = '--'
-    nozzleTempTarget.innerText = '--'
-    bedTempCurrent.innerText = '--'
-    bedTempTarget.innerText = '--'
+    nozzleTempCurrent.innerText = '--';
+    nozzleTempTarget.innerText = '--';
+    bedTempCurrent.innerText = '--';
+    bedTempTarget.innerText = '--';
   }
 
   const statusElement = document.getElementById('status');
@@ -37,49 +38,49 @@ async function updateDashboard() {
       BUILDING_FROM_SD: {
         WAIT_ON_TOOL: {
           key: 'PREHEATING',
-          text: 'Pre Heating'
+          text: 'Pre Heating',
         },
         MOVING: {
           key: 'PRINTING',
-          text: 'Printing'
+          text: 'Printing',
         },
         PAUSED: {
           key: 'PAUSED',
-          text: 'Paused'
+          text: 'Paused',
         },
         HOMING: {
           key: 'HOMING',
-          text: 'Preparing'
-        }
+          text: 'Preparing',
+        },
       },
       READY: {
         READY: {
           key: 'READY',
-          text: 'Ready'
+          text: 'Ready',
         },
         PAUSED: {
           key: 'DONE',
-          text: 'Done'
-        }
+          text: 'Done',
+        },
       },
       BUSY: {
         MOVING: {
           key: 'CANCELLING',
-          text: 'Cancelling'
-        }
+          text: 'Cancelling',
+        },
       },
       BUILDING_COMPLETED: {
         PAUSED: {
           key: 'BUILDING_COMPLETED',
-          text: 'Building Complete'
-        }
-      }
-    } [status.status]?.[status.move_mode] || {
+          text: 'Building Complete',
+        },
+      },
+    }[status.status]?.[status.move_mode] || {
       key: 'UNKNOWN',
-      text: status.status
-    }
+      text: status.status,
+    };
 
-    statusElement.innerText = decodedStatus.text
+    statusElement.innerText = decodedStatus.text;
     if (decodedStatus.key == 'PRINTING') {
       statusElement.style.color = 'var(--status-printing)';
     } else if (decodedStatus.key === 'PASUED') {
@@ -97,7 +98,8 @@ async function updateDashboard() {
       const progressResponse = await fetch(`progress?ip=${ip}`);
       if (progressResponse.ok) {
         const progress = await progressResponse.json();
-        const unroundedPercentValue = (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
+        const unroundedPercentValue =
+          (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
         percentValue = Math.round(unroundedPercentValue * 10) / 10;
         percentText = percentValue + '%';
       } else {
@@ -108,7 +110,7 @@ async function updateDashboard() {
     percentTextElement.innerText = percentText;
     progressBar.style.width = percentValue + '%';
   } else {
-    statusElement.innerText = 'OFFLINE'
+    statusElement.innerText = 'OFFLINE';
     statusElement.style.color = null;
     percentTextElement.innerText = '--';
     progressBar.style.width = '0%';
@@ -138,7 +140,7 @@ function toggleFullscreen() {
 async function sendAction(action) {
   try {
     const response = await fetch(`${action}?ip=${getIp()}`, {
-      method: 'POST'
+      method: 'POST',
     });
 
     if (response.ok) {
@@ -155,7 +157,9 @@ async function sendAction(action) {
 }
 
 function confirmAbort() {
-  if (confirm("Are you sure you want to STOP the print? This cannot be undone.")) {
+  if (
+    confirm('Are you sure you want to STOP the print? This cannot be undone.')
+  ) {
     sendAction('abort');
   }
 }

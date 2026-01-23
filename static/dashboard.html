@@ -1,29 +1,36 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="dashboard.css">
+    <link rel="stylesheet" href="dashboard.css" />
     <script src="dashboard.js"></script>
     <title>Printer Monitor</title>
-</head>
-<body>
-
-<div class="dashboard">
-    <div class="camera-container">
-      <div id="camera-wrapper" class="camera-feed">
-          <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
-            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+  </head>
+  <body>
+    <div class="dashboard">
+      <div class="camera-container">
+        <div id="camera-wrapper" class="camera-feed">
+          <button
+            class="fullscreen-btn"
+            onclick="toggleFullscreen()"
+            title="Toggle Fullscreen"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"
+              />
+            </svg>
           </button>
           <img id="printer-cam" alt="Printer Feed" />
+        </div>
       </div>
-    </div>
 
-    <div class="stats-grid">
+      <div class="stats-grid">
         <div id="status-card" class="card">
-            <div class="label">Status</div>
-            <div id="status" class="value status-tag">Loading...</div>
+          <div class="label">Status</div>
+          <div id="status" class="value status-tag">Loading...</div>
         </div>
 
         <div id="temp-nozzle-card" class="card">
@@ -47,22 +54,30 @@
         </div>
 
         <div id="progress-card" class="card card-full">
-            <div class="label">Print Progress</div>
-            <div id="percent-text" class="value">--</div>
-            <div class="progress-container">
-                <div id="progress-bar" class="progress-bar"></div>
-            </div>
+          <div class="label">Print Progress</div>
+          <div id="percent-text" class="value">--</div>
+          <div class="progress-container">
+            <div id="progress-bar" class="progress-bar"></div>
+          </div>
         </div>
-    </div>
+      </div>
 
-		<div class="controls-grid">
-				<button id="pause-btn" class="control-btn pause" onclick="sendAction('pause')">
-						PAUSE PRINT
-				</button>
-				<button id="abort-btn" class="control-btn abort" onclick="confirmAbort()">
-						ABORT PRINT
-				</button>
-		</div>
-</div>
-</body>
+      <div class="controls-grid">
+        <button
+          id="pause-btn"
+          class="control-btn pause"
+          onclick="sendAction('pause')"
+        >
+          PAUSE PRINT
+        </button>
+        <button
+          id="abort-btn"
+          class="control-btn abort"
+          onclick="confirmAbort()"
+        >
+          ABORT PRINT
+        </button>
+      </div>
+    </div>
+  </body>
 </html>
