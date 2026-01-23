@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <title>Printer Monitor</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #e0e0e0;
+            --accent-color: #03dac6;
+            --status-printing: #4caf50;
+            --status-paused: #ff9800;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .dashboard {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .camera-feed {
+            width: 100%;
+            max-width: 100%;
+            #background: #000;
+            #border-radius: 12px;
+            overflow: hidden;
+            #aspect-ratio: 300 / 281;
+            #display: flex;
+            #align-items: center;
+            #justify-content: center;
+            #box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        .camera-feed img {
+            display: block;
+            width: 100%;
+            height: auto;
+            #display: block;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .card-full {
+            grid-column: span 3;
+        }
+
+        .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .status-tag {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            background: #333;
+        }
+
+        .temp-display {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 5px;
+        }
+
+        .target-value {
+            font-size: 1.1rem;
+            color: #888;
+            font-weight: 500;
+        }
+
+        .separator {
+            color: var(--accent-color);
+            font-weight: bold;
+            font-size: 1.2rem;
+        }
+
+        .unit {
+            font-size: 1rem;
+            color: #888;
+            margin-left: 2px;
+        }
+
+        .progress-container {
+            width: 100%;
+            background: #333;
+            height: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent-color);
+            width: 0%;
+            transition: width 0.5s ease-in-out;
+        }
+
+        #status-card { order: 1; }
+        #temp-nozzle-card { order: 2; }
+        #temp-bed-card { order: 3; }
+        #progress-card { order: 4; }
+
+        /* Mobile specific adjustments */
+        @media (max-width: 600px) {
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            .card-full {
+                grid-column: span 1;
+            }
+            #status-card { order: 1; }
+            #progress-card { order: 2; }
+            #temp-nozzle-card { order: 3; }
+            #temp-bed-card { order: 4; }
+        }
+
+        .camera-container {
+            position: relative; /* Needed to anchor the button */
+            width: 100%;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 8px;
+            cursor: pointer;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .fullscreen-btn svg {
+            fill: white;
+            width: 20px;
+            height: 20px;
+        }
+
+        /* Ensure the image looks good when fullscreened */
+        .camera-feed:fullscreen {
+            background-color: black;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .camera-feed:fullscreen img {
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <div class="camera-container">
+      <div id="camera-wrapper" class="camera-feed">
+          <button class="fullscreen-btn" onclick="toggleFullscreen()" title="Toggle Fullscreen">
+            <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+          </button>
+          <img id="printer-cam" alt="Printer Feed" />
+      </div>
+    </div>
+
+    <div class="stats-grid">
+        <div id="status-card" class="card">
+            <div class="label">Status</div>
+            <div id="status" class="value status-tag">Loading...</div>
+        </div>
+
+        <div id="temp-nozzle-card" class="card">
+          <div class="label">Nozzle Temperature</div>
+          <div class="temp-display">
+            <span id="nozzle-temp-current" class="value">--</span>
+            <span class="separator">/</span>
+            <span id="nozzle-temp-target" class="target-value">--</span>
+            <span class="unit">°C</span>
+          </div>
+        </div>
+
+        <div id="temp-bed-card" class="card">
+          <div class="label">Bed Temperature</div>
+          <div class="temp-display">
+            <span id="head-temp-current" class="value">--</span>
+            <span class="separator">/</span>
+            <span id="head-temp-target" class="target-value">--</span>
+            <span class="unit">°C</span>
+          </div>
+        </div>
+
+        <div id="progress-card" class="card card-full">
+            <div class="label">Print Progress</div>
+            <div id="percent-text" class="value">--</div>
+            <div class="progress-container">
+                <div id="progress-bar" class="progress-bar"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function getIp() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('ip') || '';
+    }
+
+    async function refreshStream() {
+     document.getElementById('printer-cam').src = `stream?ip=${getIp()}&?t=${new Date().getTime()}`;
+    }
+
+    async function updateDashboard() {
+        const ip = getIp();
+        try {
+            const temp_response = await fetch(`temp?ip=${ip}`)
+            const temp = await temp_response.json();
+            document.getElementById('nozzle-temp-current').innerText = temp.nozzle.current
+            document.getElementById('nozzle-temp-target').innerText = temp.nozzle.target || '--';
+            document.getElementById('head-temp-current').innerText = temp.bed.current
+            document.getElementById('head-temp-target').innerText = temp.bed.target || '--';
+
+            const status_response = await fetch(`status?ip=${ip}`);
+            const status = await status_response.json();
+
+            const statusElement = document.getElementById('status');
+            const statusTexts = {
+              'BUILDING_FROM_SD': 'Printing'
+            };
+            statusElement.innerText = statusTexts[status.status] || status.status;
+            if (status.status === 'BUILDING_FROM_SD') {
+                statusElement.style.color = 'var(--status-printing)';
+            } else if (status.status === 'paused') {
+                statusElement.style.color = 'var(--status-paused)';
+            } else {
+                statusElement.style.color = null;
+            }
+          
+            let percentText;
+            let percentValue;
+            if (status.status == 'READY') {
+              percentText = '--'
+              percentValue = 0;
+            } else {
+              const progress_response = await fetch(`progress?ip=${ip}`);
+              const progress = await progress_response.json();
+              percentValue = (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
+              percentValue = Math.round(percentValue * 10)  / 10;
+              percentText = percentValue + '%';
+            }
+            document.getElementById('percent-text').innerText = percentText;
+            document.getElementById('progress-bar').style.width = percentValue + '%';
+        } catch (error) {
+            console.error('Error fetching printer data:', error);
+            document.getElementById('status').innerText = 'OFFLINE';
+        }
+    }
+
+    function toggleFullscreen() {
+        const elem = document.getElementById('camera-wrapper');
+
+        if (!document.fullscreenElement) {
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) { /* Safari */
+                elem.webkitRequestFullscreen();
+            } else if (elem.msRequestFullscreen) { /* IE11 */
+                elem.msRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+    }
+
+    window.onload = () => {
+      updateDashboard();
+      refreshStream();
+    };
+    setInterval(updateDashboard, 10000);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshStream(); 
+      }
+    });
+</script>
+
+</body>
+</html>
