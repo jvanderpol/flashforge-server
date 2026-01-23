@@ -10,16 +10,17 @@ import urllib.parse
 
 DEFAULT_IP = '192.168.107.3'
 
-def simple_handler(content_type=None):
+def simple_handler(content_type=None, response_code=200):
   def create_decorator(handler):
     def wrapper(self, *args, **kwargs):
       try:
         content = handler(self, *args, **kwargs)
-      except:
+      except Exception as e:
         self.send_response(500)
         self.end_headers()
+        self._write_string(json.dumps({'error': str(e)}))
         raise
-      self.send_response(200)
+      self.send_response(response_code)
       if content_type:
         self.send_header('Content-type', content_type)
       self.end_headers()
@@ -33,26 +34,33 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     self._handlers = {
         '/': self._dashboard,
         '/dashboard': self._dashboard,
+        '/favicon.svg': self._favicon,
         '/handlers': self._handlers,
-        '/info': self._info,
         '/head_position': self._head_position,
-        '/temp': self._temp,
+        '/info': self._info,
+        '/pause': self._pause,
+        '/abort': self._abort,
         '/progress': self._progress,
         '/status': self._status,
         '/stream': self._stream,
-        '/favicon.svg': self._favicon,
+        '/temp': self._temp,
     }
     super().__init__(*args, **kwargs)
 
   def do_GET(self):
-    url = urllib.parse.urlparse(self.path)
-    handler = self._handlers.get(url.path)
-    if not handler:
-      self.send_response(404)
-      self.end_headers()
-      return
+    self._handleRequest()
 
+  def do_POST(self):
+    self._handleRequest()
+
+  def _handleRequest(self):
+    url = urllib.parse.urlparse(self.path)
+    handler = self._handlers.get(url.path) or self._not_found_handler
     handler()
+
+  @simple_handler(content_type='text/html', response_code=404)
+  def _not_found_handler(self):
+    return f'unsupported path: {urllib.parse.urlparse(self.path).path}'
 
   @simple_handler(content_type='text/html')
   def _handlers(self):
@@ -82,6 +90,16 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   @simple_handler(content_type='application/json')
   def _status(self):
     return self._to_json(self._get_printer().get_status())
+
+  @simple_handler()
+  def _pause(self):
+    self._get_printer().pause()
+    return ''
+
+  @simple_handler()
+  def _abort(self):
+    self._get_printer().abort()
+    return ''
 
   def _stream(self):
     ip = self._get_ip()

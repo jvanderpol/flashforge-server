@@ -146,6 +146,9 @@
             .card-full {
                 grid-column: span 1;
             }
+						.controls-grid {
+								flex-direction: column; /* Stack buttons on mobile for easier tapping */
+						}
             #status-card { order: 1; }
             #progress-card { order: 2; }
             #temp-nozzle-card { order: 3; }
@@ -200,6 +203,36 @@
             height: auto;
             object-fit: contain;
         }
+
+				.controls-grid {
+						display: flex;
+						gap: 15px;
+				}
+
+				.control-btn {
+						flex: 1;
+						padding: 15px;
+						border: none;
+						border-radius: 12px;
+						font-weight: bold;
+						cursor: pointer;
+						font-size: 0.9rem;
+						transition: opacity 0.2s, transform 0.1s;
+						color: #fff;
+				}
+
+				.control-btn:active {
+						transform: scale(0.98);
+				}
+
+				.pause {
+						background-color: #333; /* Dark neutral for pause */
+						border: 1px solid #555;
+				}
+
+				.abort {
+						background-color: #cf6679; /* Soft red for danger */
+				}
     </style>
 </head>
 <body>
@@ -233,9 +266,9 @@
         <div id="temp-bed-card" class="card">
           <div class="label">Bed Temperature</div>
           <div class="temp-display">
-            <span id="head-temp-current" class="value">--</span>
+            <span id="bed-temp-current" class="value">--</span>
             <span class="separator">/</span>
-            <span id="head-temp-target" class="target-value">--</span>
+            <span id="bed-temp-target" class="target-value">--</span>
             <span class="unit">°C</span>
           </div>
         </div>
@@ -248,6 +281,15 @@
             </div>
         </div>
     </div>
+
+		<div class="controls-grid">
+				<button id="pause-btn" class="control-btn pause" onclick="sendAction('pause')">
+						PAUSE PRINT
+				</button>
+				<button id="abort-btn" class="control-btn abort" onclick="confirmAbort()">
+						ABORT PRINT
+				</button>
+		</div>
 </div>
 
 <script>
@@ -261,49 +303,80 @@
     }
 
     async function updateDashboard() {
-        const ip = getIp();
-        try {
-            const temp_response = await fetch(`temp?ip=${ip}`)
-            const temp = await temp_response.json();
-            document.getElementById('nozzle-temp-current').innerText = temp.nozzle.current
-            document.getElementById('nozzle-temp-target').innerText = temp.nozzle.target || '--';
-            document.getElementById('head-temp-current').innerText = temp.bed.current
-            document.getElementById('head-temp-target').innerText = temp.bed.target || '--';
+      const ip = getIp();
+      const nozzleTempCurrent = document.getElementById('nozzle-temp-current');
+      const nozzleTempTarget = document.getElementById('nozzle-temp-target');
+      const bedTempCurrent = document.getElementById('bed-temp-current')
+      const bedTempTarget = document.getElementById('bed-temp-target')
+      const tempResponse = await fetch(`temp?ip=${ip}`)
+      if (tempResponse.ok) {
+         const temp = await tempResponse.json();
+         nozzleTempCurrent.innerText = temp.nozzle.current
+         nozzleTempTarget.innerText = temp.nozzle.target || '--';
+         bedTempCurrent.innerText = temp.bed.current
+         bedTempTarget.innerText = temp.bed.target || '--';
+      } else {
+         nozzleTempCurrent.innerText = '--'
+         nozzleTempTarget.innerText = '--'
+         bedTempCurrent.innerText = '--'
+         bedTempTarget.innerText = '--'
+      }
 
-            const status_response = await fetch(`status?ip=${ip}`);
-            const status = await status_response.json();
+      const statusElement = document.getElementById('status');
+      const percentText = document.getElementById('percent-text');
+      const progressBar = document.getElementById('progress-bar');
+      const statusResponse = await fetch(`status?ip=${ip}`);
+      if (statusResponse.ok) {
+         const status = await statusResponse.json();
+         const decodedStatus = {
+           BUILDING_FROM_SD: {
+            WAIT_ON_TOOL: { key: 'PREHEATING', text: 'Pre Heating'} ,
+            MOVING: { key: 'PRINTING', text: 'Printing' },
+            PAUSED: { key: 'PAUSED', text: 'Paused' }
+           },
+           READY: {
+            READY: { key: 'READY', text: 'Ready' },
+            PAUSED: { key: 'DONE', text: 'Done' }
+           },
+           BUSY: {
+            MOVING: { key: 'CANCELLING', text: 'Cancelling' }
+           }
+         }[status.status]?.[status.move_mode] || { key: 'UNKNOWN', text: status.status }
 
-            const statusElement = document.getElementById('status');
-            const statusTexts = {
-              'BUILDING_FROM_SD': 'Printing'
-            };
-            statusElement.innerText = statusTexts[status.status] || status.status;
-            if (status.status === 'BUILDING_FROM_SD') {
-                statusElement.style.color = 'var(--status-printing)';
-            } else if (status.status === 'paused') {
-                statusElement.style.color = 'var(--status-paused)';
-            } else {
-                statusElement.style.color = null;
-            }
-          
-            let percentText;
-            let percentValue;
-            if (status.status == 'READY') {
-              percentText = '--'
-              percentValue = 0;
-            } else {
-              const progress_response = await fetch(`progress?ip=${ip}`);
-              const progress = await progress_response.json();
-              percentValue = (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
-              percentValue = Math.round(percentValue * 10)  / 10;
-              percentText = percentValue + '%';
-            }
-            document.getElementById('percent-text').innerText = percentText;
-            document.getElementById('progress-bar').style.width = percentValue + '%';
-        } catch (error) {
-            console.error('Error fetching printer data:', error);
-            document.getElementById('status').innerText = 'OFFLINE';
-        }
+         statusElement.innerText = decodedStatus.text
+         if (decodedStatus.key == 'PRINTING') {
+             statusElement.style.color = 'var(--status-printing)';
+         } else if (decodedStatus.key === 'PASUED') {
+             statusElement.style.color = 'var(--status-paused)';
+         } else {
+             statusElement.style.color = null;
+         }
+       
+         let percentText;
+         let percentValue;
+         if (decodedStatus.key == 'READY') {
+           percentText = '--';
+           percentValue = 0;
+         } else {
+           const progressResponse = await fetch(`progress?ip=${ip}`);
+           if (progressResponse.ok) {
+             const progress = await progressResponse.json();
+             percentValue = (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
+             percentValue = Math.round(percentValue * 10)  / 10;
+             percentText = percentValue + '%';
+           } else {
+             percentValue = 0;
+             percentText = '--';
+           }
+         }
+         percentText.innerText = percentText;
+         progressBar.style.width = percentValue + '%';
+      } else {
+         statusElement.innerText = 'OFFLINE'
+         statusElement.style.color = null;
+         percentText.innerText = '--';
+         progressBar.style.width = '0%';
+      }
     }
 
     function toggleFullscreen() {
@@ -323,6 +396,31 @@
             }
         }
     }
+
+		async function sendAction(action) {
+				try {
+						const response = await fetch(`${action}?ip=${getIp()}`, {
+								method: 'POST'
+						});
+						
+						if (response.ok) {
+								alert(`${action} command sent successfully.`);
+								updateDashboard();
+						} else {
+                const responseText = await response.text();
+								alert(`${action} failed: ${responseText}`);
+						}
+				} catch (error) {
+						console.error('Command failed:', error);
+						alert('Failed to send command to printer.');
+				}
+		}
+
+		function confirmAbort() {
+				if (confirm("Are you sure you want to STOP the print? This cannot be undone.")) {
+						sendAction('abort');
+				}
+		}
 
     window.onload = () => {
       updateDashboard();

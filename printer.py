@@ -30,6 +30,20 @@ class Printer:
   def get_status(self):
     return self._call_rpc(STATUS_RPC)
 
+  def pause(self):
+    self._call_rpcs([
+      REQUEST_CONTROL_RPC,
+      PAUSE_RPC,
+      RELEASE_CONTROL_RPC
+    ])
+
+  def abort(self):
+    self._call_rpcs([
+      REQUEST_CONTROL_RPC,
+      ABORT_RPC,
+      RELEASE_CONTROL_RPC
+    ])
+
   def get_camera_stream(self):
     return self._camera_stream
 
@@ -50,17 +64,19 @@ class Printer:
     return {'ip': self._ip, 'port': 8899}
 
   def _call_rpc(self, rpc):
-    #with self._lock:
-      # Maybe hanld retries?
-      # return self._call_with_retry(functools.partial(get_status, self._address()))
+    return self._call_rpcs([rpc])[0]
 
+  def _call_rpcs(self, rpcs):
     printer_socket = socket.socket()
     printer_socket.settimeout(5)
     printer_socket.connect((self._ip, 8899))
-    printer_socket.send(rpc.request.encode())
-    data = printer_socket.recv(1024)
+    responses = []
+    for rpc in rpcs:
+      printer_socket.send(rpc.request.encode())
+      data = printer_socket.recv(1024)
+      responses.append(rpc.response_parser(data.decode()))
     printer_socket.close()
-    return rpc.response_parser(data.decode())
+    return responses
 
 @dataclass
 class PrinterRpc:
@@ -220,11 +236,32 @@ class StatusResponse:
       current_file=parse_single_line_field(response_text, 'CurrentFile')
     )
 
+@dataclass
+class EmptyResponse:
+  def parse(response_text):
+    print(f'Ignoring response: {response_text}')
+    return EmptyResponse()
+
+  def validating_parser(success_regex):
+    def parse(response_text):
+      print(f'checking for {success_regex} in {response_text}')
+      if not success_regex.search(response_text):
+        print('not found')
+        raise Exception(f'Command failed: {response_text}')
+      print('found')
+      return EmptyResponse()
+    return parse
+
+
 INFO_RPC = PrinterRpc('~M115\r\n', InfoResponse.parse)
 HEAD_POSITION_RPC = PrinterRpc('~M114\r\n', HeadPositionResponse.parse)
 GET_TEMP_RPC = PrinterRpc('~M105\r\n', TempResponse.parse)
 PROGRESS_RPC = PrinterRpc('~M27\r\n', ProgressResponse.parse)
 STATUS_RPC = PrinterRpc('~M119\r\n', StatusResponse.parse)
+PAUSE_RPC = PrinterRpc('~M25\r\n', EmptyResponse.parse)
+ABORT_RPC = PrinterRpc('~M26\r\n', EmptyResponse.parse)
+REQUEST_CONTROL_RPC = PrinterRpc('~M601 S1\r\n', EmptyResponse.validating_parser(re.compile('Control Success')))
+RELEASE_CONTROL_RPC = PrinterRpc('~M602\r\n', EmptyResponse.parse)
 
 class CameraStream:
   def __init__(self, ip):
