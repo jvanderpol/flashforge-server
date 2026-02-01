@@ -28,6 +28,7 @@ async function updateDashboard() {
     bedTempTarget.innerText = '--';
   }
 
+  const pauseResumeButton = document.getElementById('pause-resume-btn');
   const statusElement = document.getElementById('status');
   const percentTextElement = document.getElementById('percent-text');
   const progressBar = document.getElementById('progress-bar');
@@ -79,6 +80,13 @@ async function updateDashboard() {
       key: 'UNKNOWN',
       text: status.status,
     };
+    if (decodedStatus.key == 'PAUSED') {
+      pauseResumeButton.innerText = 'RESUME PRINT'
+      pauseResumeButton.onclick = () => sendAction('resume');
+    } else {
+      pauseResumeButton.innerText = 'PAUSE PRINT'
+      pauseResumeButton.onclick = () => sendAction('pause');
+    }
 
     statusElement.innerText = decodedStatus.text;
     if (decodedStatus.key == 'PRINTING') {
@@ -110,6 +118,8 @@ async function updateDashboard() {
     percentTextElement.innerText = percentText;
     progressBar.style.width = percentValue + '%';
   } else {
+    pauseResumeButton.innerText = 'PAUSE PRINT'
+    pauseResumeButton.onclick = () => sendAction('pause');
     statusElement.innerText = 'OFFLINE';
     statusElement.style.color = null;
     percentTextElement.innerText = '--';

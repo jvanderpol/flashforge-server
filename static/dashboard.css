@@ -237,7 +237,7 @@ body {
   transform: scale(0.98);
 }
 
-.pause {
+.pause-resume {
   background-color: #333; /* Dark neutral for pause */
   border: 1px solid #555;
 }

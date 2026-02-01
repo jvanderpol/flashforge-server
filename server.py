@@ -1,14 +1,14 @@
-from pathlib import Path
 from dataclasses import asdict
+from pathlib import Path
 
+import argparse
 import http.server
 import json
+import logging
 import printer as printer_lib
 import queue
 import threading
 import urllib.parse
-
-DEFAULT_IP = '192.168.107.3'
 
 def simple_handler(content_type=None, response_code=200):
   def create_decorator(handler):
@@ -42,6 +42,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
         '/head_position': self._head_position,
         '/info': self._info,
         '/pause': self._pause,
+        '/resume': self._resume,
         '/progress': self._progress,
         '/reset_stream': self._reset_stream,
         '/status': self._status,
@@ -100,6 +101,11 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     return ''
 
   @simple_handler()
+  def _resume(self):
+    self._get_printer().resume()
+    return ''
+
+  @simple_handler()
   def _abort(self):
     self._get_printer().abort()
     return ''
@@ -117,7 +123,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
         while True:
           self.wfile.write(subscriber_queue.get())
       except BrokenPipeError:
-        print('client disconnected')
+        logging.info('client disconnected')
     finally:
       stream.stop_stream(subscriber_queue)
 
@@ -162,21 +168,29 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     self.wfile.write(string.encode('utf-8'))
 
   def _get_ip(self):
-    return self._get_first_query_param('ip') or DEFAULT_IP
+    ip = self._get_first_query_param('ip') or self.server.default_printer_ip
+    if not ip:
+      raise RuntimError('No ip or default ip provided')
+    return ip
 
 
 class FlashForgeHttpServer(http.server.ThreadingHTTPServer):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, *args, default_printer_ip=None, printer_ips=None, **kwargs):
     super().__init__(*args, **kwargs)
     self._printers = {}
     self.file_cache = FileCache()
     self._lock = threading.Lock()
+    self.default_printer_ip = default_printer_ip
+    if printer_ips:
+      for printer_ip in printer_ips:
+        self.get_printer(printer_ip)
 
   def get_printer(self, ip):
     with self._lock:
       printer = self._printers.get(ip)
       if not printer:
         printer = printer_lib.Printer(ip)
+        printer.init()
         self._printers[ip] = printer
       return printer
 
@@ -192,5 +206,13 @@ class FileCache:
     return file_bytes
 
 if __name__ == "__main__":
-  server = FlashForgeHttpServer(('', 8000), FlashForgeRequestHandler)
+  logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+
+  parser = argparse.ArgumentParser()
+  parser.add_argument('--port', help="port to listen for http connections", type=int, default=8000)
+  parser.add_argument('-p', "--printers", help="csv of printers to monitor on startup", default='')
+  args = parser.parse_args()
+  printer_ips = [ip.strip() for ip in args.printers.split(',')]
+  default_printer_ip = printer_ips[0] if printer_ips else None
+  server = FlashForgeHttpServer(('', args.port), FlashForgeRequestHandler, default_printer_ip=default_printer_ip, printer_ips=printer_ips)
   server.serve_forever()
