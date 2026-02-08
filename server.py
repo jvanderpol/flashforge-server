@@ -1,4 +1,5 @@
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import argparse
@@ -28,6 +29,16 @@ def simple_handler(content_type=None, response_code=200):
     return wrapper
   return create_decorator
 
+@dataclass
+class GetProgressResponse:
+  progress: printer_lib.ProgressResponse
+  times: printer_lib.EstimatedPrintingTimes
+
+@dataclass
+class LogsResponse:
+  logs: list[printer_lib.LoggedProgress]
+  times: printer_lib.EstimatedPrintingTimes
+
 class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
 
   def __init__(self, *args, **kwargs):
@@ -44,6 +55,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
         '/pause': self._pause,
         '/resume': self._resume,
         '/progress': self._progress,
+        '/debug_estimate': self._debug_estimate,
         '/reset_stream': self._reset_stream,
         '/status': self._status,
         '/stream': self._stream,
@@ -89,7 +101,24 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
 
   @simple_handler(content_type='application/json')
   def _progress(self):
-    return self._to_json(self._get_printer().get_progress())
+    printer = self._get_printer()
+    return self._to_json(GetProgressResponse(
+      printer.get_progress(),
+      printer.estimate_printing_times()
+    ))
+
+  @simple_handler(content_type='application/json')
+  def _debug_estimate(self):
+    printer = self._get_printer()
+    def serializer(obj):
+      if isinstance(obj, datetime):
+        return {
+            'iso': obj.isoformat(),
+            'timestamp': int(obj.timestamp())
+        }
+      raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+    return self._to_json(LogsResponse(
+      list(printer._progress_monitor._logged_progress), printer.estimate_printing_times()), default=serializer)
 
   @simple_handler(content_type='application/json')
   def _status(self):
@@ -161,8 +190,8 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     self.end_headers()
     self.wfile.write(file_bytes)
 
-  def _to_json(self, response):
-    return json.dumps(asdict(response))
+  def _to_json(self, response, default=None):
+    return json.dumps(asdict(response), default=default)
 
   def _write_string(self, string):
     self.wfile.write(string.encode('utf-8'))
@@ -175,10 +204,10 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
 
 
 class FlashForgeHttpServer(http.server.ThreadingHTTPServer):
-  def __init__(self, *args, default_printer_ip=None, printer_ips=None, **kwargs):
+  def __init__(self, *args, default_printer_ip=None, printer_ips=None, file_cache=None, **kwargs):
     super().__init__(*args, **kwargs)
     self._printers = {}
-    self.file_cache = FileCache()
+    self.file_cache = file_cache
     self._lock = threading.Lock()
     self.default_printer_ip = default_printer_ip
     if printer_ips:
@@ -194,16 +223,25 @@ class FlashForgeHttpServer(http.server.ThreadingHTTPServer):
         self._printers[ip] = printer
       return printer
 
+@dataclass
+class CacheEntry:
+  create_time: datetime
+  content: bytes
+
 class FileCache:
-  def __init__(self):
+  def __init__(self, ttl):
     self._files = {}
+    self._ttl = ttl
 
   def get_bytes(self, path):
-    file_bytes = self._files.get(path)
-    if not file_bytes:
+    cache_entry = self._files.get(path)
+    now = datetime.now()
+    if not cache_entry or cache_entry.create_time + self._ttl < now:
+      print(f'read {path}')
       file_bytes = Path(path).read_bytes()
-      self._files[path] = file_bytes
-    return file_bytes
+      cache_entry = CacheEntry(now, file_bytes)
+      self._files[path] = cache_entry
+    return cache_entry.content
 
 if __name__ == "__main__":
   logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -211,8 +249,14 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('--port', help="port to listen for http connections", type=int, default=8000)
   parser.add_argument('-p', "--printers", help="csv of printers to monitor on startup", default='')
+  parser.add_argument('-t', "--ttl", help="ttl in seconds of static in memory content", type=int, default=600)
   args = parser.parse_args()
   printer_ips = [ip.strip() for ip in args.printers.split(',')]
   default_printer_ip = printer_ips[0] if printer_ips else None
-  server = FlashForgeHttpServer(('', args.port), FlashForgeRequestHandler, default_printer_ip=default_printer_ip, printer_ips=printer_ips)
+  server = FlashForgeHttpServer(
+      ('', args.port),
+      FlashForgeRequestHandler,
+      default_printer_ip=default_printer_ip,
+      printer_ips=printer_ips,
+      file_cache=FileCache(timedelta(seconds=args.ttl)))
   server.serve_forever()

@@ -40,6 +40,9 @@ class Printer:
   def get_progress(self):
     return self._call_rpc(PROGRESS_RPC)
 
+  def estimate_printing_times(self):
+    return self._progress_monitor.estimate_printing_times()
+
   def get_status(self):
     return self._call_rpc(STATUS_RPC)
 
@@ -303,7 +306,7 @@ class EstimatedPrintingTimes:
 class ProgressMonitor:
   def __init__(self, printer):
     self._printer = printer
-    self._logged_progress = deque([], maxlen=1000)
+    self._logged_progress = deque([], maxlen=100000)
     self._lock = threading.Lock()
     self._monitor_thread = None
     self._monitor_thread_shutting_down = threading.Event()
@@ -338,32 +341,38 @@ class ProgressMonitor:
       except (PrinterConnectionError, ResponseParsingException) as e:
         logging.error(f'Error checking progress: {e}')
         pass
-      estimated = self.estimate_remaining_time()
       self._monitor_thread_shutting_down.wait(10)
 
-  def estimate_remaining_time(self):
+  def estimate_printing_times(self):
     with self._lock:
       if not self._logged_progress:
         return None
 
-      printing_logs = [l for l in self._logged_progress if l.status.move_mode == 'MOVING']
-      if not printing_logs:
-        return None
-
-      first_printed_bytes = printing_logs[0].progress.printed_bytes
+      first_printed_bytes = self._logged_progress[0].progress.printed_bytes
       last_printed_bytes = self._logged_progress[-1].progress.printed_bytes
-      bytes_with_logging = last_printed_bytes.current - first_printed_bytes.current
-      if bytes_with_logging == 0:
-        return None
+
+      analyzed_logs = None
+      if first_printed_bytes.current == 0:
+        analyzed_logs = self._logged_progress
+      else:
+        # logging started mid print, try to find a more precise starting point
+        for index, log in enumerate(self._logged_progress):
+          if log.progress.printed_bytes.current > first_printed_bytes.current:
+            first_printed_bytes = log.progress.printed_bytes
+            analyzed_logs = list(self._logged_progress)[index:]
+            break
+        if not analyzed_logs:
+          # Fall back to all logs if this has only seen logs in the same percent
+          analyzed_logs = self._logged_progress
 
       logged_time = datetime.timedelta()
       printing_time_to_last_progress = None
       last_progress = None
       printing_time_after_last_progress = datetime.timedelta()
-      for index, logged_progress in enumerate(self._logged_progress):
+      for index, logged_progress in enumerate(analyzed_logs):
         if index > 0 and logged_progress.status.move_mode == 'MOVING':
           time_in_this_log = (
-              logged_progress.timestamp - self._logged_progress[index - 1].timestamp)
+              logged_progress.timestamp - analyzed_logs[index - 1].timestamp)
           logged_time += time_in_this_log
           if (not printing_time_to_last_progress and logged_progress.progress.printed_bytes.current == last_printed_bytes.current):
             printing_time_to_last_progress = logged_time
@@ -373,6 +382,15 @@ class ProgressMonitor:
 
       if logged_time.total_seconds() == 0:
         return None
+
+      bytes_with_logging = last_printed_bytes.current - first_printed_bytes.current
+      if bytes_with_logging == 0:
+        if first_printed_bytes.current == 0:
+          return EstimatedPrintingTimes(
+              completed_seconds=logged_time.total_seconds(),
+              remaining_seconds=None)
+        else:
+          return None
 
       printing_rate = printing_time_to_last_progress / bytes_with_logging
       total_time = printing_rate * last_printed_bytes.total

@@ -49,7 +49,7 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 15px;
 }
 
@@ -62,7 +62,15 @@ body {
 }
 
 .card-full {
+  grid-column: span 6;
+}
+
+.card-half {
   grid-column: span 3;
+}
+
+.card-third {
+  grid-column: span 2;
 }
 
 .label {
@@ -78,6 +86,12 @@ body {
   font-weight: bold;
 }
 
+.end-time {
+  font-size: 1.1rem;
+  color: #888;
+  font-weight: 500;
+}
+
 .status-tag {
   display: inline-block;
   padding: 4px 12px;
@@ -88,7 +102,7 @@ body {
 
 .temp-display {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
   gap: 5px;
 }
@@ -129,40 +143,29 @@ body {
 
 #status-card {
   order: 1;
+  grid-column: span 2;
 }
-#temp-nozzle-card {
-  order: 2;
-}
-#temp-bed-card {
-  order: 3;
-}
-#progress-card {
-  order: 4;
-}
+#printing-time-card { order: 1; }
+#estimated-remaining-time-card { order: 1; }
+#progress-card { order: 2; }
+#temp-nozzle-card { order: 3; }
+#temp-bed-card { order: 3; }
 
 /* Mobile specific adjustments */
 @media (max-width: 600px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-  .card-full {
-    grid-column: span 1;
-  }
+  .card-third { grid-column: span 3; }
   .controls-grid {
     flex-direction: column; /* Stack buttons on mobile for easier tapping */
   }
   #status-card {
     order: 1;
+    grid-column: span 6;
   }
-  #progress-card {
-    order: 2;
-  }
-  #temp-nozzle-card {
-    order: 3;
-  }
-  #temp-bed-card {
-    order: 4;
-  }
+  #progress-card { order: 2; }
+  #printing-time-card { order: 3; }
+  #estimated-remaining-time-card { order: 3; }
+  #temp-nozzle-card { order: 4; }
+  #temp-bed-card { order: 4; }
 }
 
 .camera-container {

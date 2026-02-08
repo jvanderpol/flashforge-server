@@ -33,24 +33,16 @@
           <div id="status" class="value status-tag">Loading...</div>
         </div>
 
-        <div id="temp-nozzle-card" class="card">
-          <div class="label">Nozzle Temperature</div>
-          <div class="temp-display">
-            <span id="nozzle-temp-current" class="value">--</span>
-            <span class="separator">/</span>
-            <span id="nozzle-temp-target" class="target-value">--</span>
-            <span class="unit">°C</span>
-          </div>
+        <div id="printing-time-card" class="card card-third">
+          <div class="label">Printing Time</div>
+          <span id="printing-time" class="value">--</span>
         </div>
 
-        <div id="temp-bed-card" class="card">
-          <div class="label">Bed Temperature</div>
-          <div class="temp-display">
-            <span id="bed-temp-current" class="value">--</span>
-            <span class="separator">/</span>
-            <span id="bed-temp-target" class="target-value">--</span>
-            <span class="unit">°C</span>
-          </div>
+        <div id="estimated-remaining-time-card" class="card card-third">
+          <div class="label">Remaining Time (Estimated)</div>
+          <span id="estimated-remaining-time" class="value">--</span>
+          <br>
+          <span id="estimated-end-time" class="end-time">--</span>
         </div>
 
         <div id="progress-card" class="card card-full">
@@ -60,6 +52,28 @@
             <div id="progress-bar" class="progress-bar"></div>
           </div>
         </div>
+
+        <div id="temp-nozzle-card" class="card card-half">
+          <div class="label">Nozzle Temperature</div>
+          <div class="temp-display">
+            <span id="nozzle-temp-current" class="value">--</span>
+            <span class="separator">/</span>
+            <span id="nozzle-temp-target" class="target-value">--</span>
+            <span class="unit">°C</span>
+          </div>
+        </div>
+
+        <div id="temp-bed-card" class="card card-half">
+          <div class="label">Bed Temperature</div>
+          <div class="temp-display">
+            <span id="bed-temp-current" class="value">--</span>
+            <span class="separator">/</span>
+            <span id="bed-temp-target" class="target-value">--</span>
+            <span class="unit">°C</span>
+          </div>
+        </div>
+
+
       </div>
 
       <div class="controls-grid">

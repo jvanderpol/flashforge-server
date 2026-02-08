@@ -8,6 +8,13 @@ async function refreshStream() {
     `stream?ip=${getIp()}&?t=${new Date().getTime()}`;
 }
 
+function prettyPrintSeconds(seconds) {
+  let roundedSeconds = Math.round(seconds);
+  const hours = Math.floor(seconds / 60 / 60);
+  const minutes = Math.floor(seconds / 60 % 60);
+  return `${hours}:${String(minutes).padStart(2, '0')}`
+}
+
 async function updateDashboard() {
   const ip = getIp();
   const nozzleTempCurrent = document.getElementById('nozzle-temp-current');
@@ -32,6 +39,9 @@ async function updateDashboard() {
   const statusElement = document.getElementById('status');
   const percentTextElement = document.getElementById('percent-text');
   const progressBar = document.getElementById('progress-bar');
+  const printingTimeElement = document.getElementById('printing-time');
+  const remainingTimeElement = document.getElementById('estimated-remaining-time');
+  const endTimeElement = document.getElementById('estimated-end-time');
   const statusResponse = await fetch(`status?ip=${ip}`);
   if (statusResponse.ok) {
     const status = await statusResponse.json();
@@ -99,6 +109,9 @@ async function updateDashboard() {
 
     let percentText;
     let percentValue;
+    let printingTime = '--';
+    let remainingTime = '--';
+    let endTime = '--';
     if (decodedStatus.key == 'READY') {
       percentText = '--';
       percentValue = 0;
@@ -107,9 +120,24 @@ async function updateDashboard() {
       if (progressResponse.ok) {
         const progress = await progressResponse.json();
         const unroundedPercentValue =
-          (progress.printed_bytes.current / progress.printed_bytes.total) * 100;
+          (progress.progress.printed_bytes.current / progress.progress.printed_bytes.total) * 100;
         percentValue = Math.round(unroundedPercentValue * 10) / 10;
         percentText = percentValue + '%';
+        const printingSeconds = progress?.times?.completed_seconds;
+        if (printingSeconds || printingSeconds == 0) {
+          printingTime = prettyPrintSeconds(printingSeconds)
+        }
+        const remainingSeconds = progress?.times?.remaining_seconds;
+        if (remainingSeconds || remainingSeconds == 0) {
+          remainingTime = prettyPrintSeconds(remainingSeconds)
+          if (remainingSeconds > 0) {
+            const endTimeDate = new Date();
+            endTimeDate.setSeconds(endTimeDate.getSeconds() + remainingSeconds);
+            endTime = endTimeDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            endTime = '--';
+          }
+        }
       } else {
         percentValue = 0;
         percentText = '--';
@@ -117,6 +145,9 @@ async function updateDashboard() {
     }
     percentTextElement.innerText = percentText;
     progressBar.style.width = percentValue + '%';
+    printingTimeElement.innerText = printingTime;
+    remainingTimeElement.innerText = remainingTime;
+    endTimeElement.innerText = endTime;
   } else {
     pauseResumeButton.innerText = 'PAUSE PRINT'
     pauseResumeButton.onclick = () => sendAction('pause');
@@ -124,6 +155,8 @@ async function updateDashboard() {
     statusElement.style.color = null;
     percentTextElement.innerText = '--';
     progressBar.style.width = '0%';
+    printingTimeElement.innerText = '--';
+    remainingTimeElement.innerText = '--';
   }
 }
 
