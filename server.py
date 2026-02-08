@@ -160,7 +160,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   def _reset_stream(self):
     self._get_printer().get_camera_stream().reset_stream()
     return ''
-  
+
   def _dashboard_html(self):
     self._send_file('static/dashboard.html', 'text/html')
 
