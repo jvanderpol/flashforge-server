@@ -14,8 +14,26 @@ from typing import Any, Callable, Union
 class ResponseParsingException(Exception):
   pass
 
+class RequestControlFailedException(Exception):
+  pass
+
 class PrinterConnectionError(Exception):
   pass
+
+def with_control(func):
+    @functools.wraps(func)
+    def wrapper(self, *args, **kwargs):
+      try:
+        return func(self, *args, **kwargs)
+      except RequestControlFailedException as e:
+        try:
+          logging.info('Error requesting control, trying to release and retrying')
+          self._call_rpc(RELEASE_CONTROL_RPC)
+        except PrinterConnectionError:
+          logging.exception('Error trying to release control')
+          raise e
+        return func(self, *args, **kwargs)
+    return wrapper
 
 class Printer:
   def __init__(self, ip):
@@ -46,6 +64,10 @@ class Printer:
   def get_status(self):
     return self._call_rpc(STATUS_RPC)
 
+  def relase_control(self):
+    return self._call_rpc(RELEASE_CONTROL_RPC)
+
+  @with_control
   def pause(self):
     self._call_rpcs([
       REQUEST_CONTROL_RPC,
@@ -53,6 +75,7 @@ class Printer:
       RELEASE_CONTROL_RPC
     ])
 
+  @with_control
   def resume(self):
     self._call_rpcs([
       REQUEST_CONTROL_RPC,
@@ -60,6 +83,7 @@ class Printer:
       RELEASE_CONTROL_RPC
     ])
 
+  @with_control
   def abort(self):
     self._call_rpcs([
       REQUEST_CONTROL_RPC,
@@ -272,10 +296,10 @@ class EmptyResponse:
   def parse(response_text):
     return EmptyResponse()
 
-  def validating_parser(success_regex):
+  def validating_parser(success_regex, exception_class=ResponseParsingException):
     def parse(response_text):
       if not success_regex.search(response_text):
-        raise Exception(f'Command failed: {response_text}')
+        raise exception_class(f'Command failed: {response_text}')
       return EmptyResponse()
     return parse
 
@@ -288,7 +312,11 @@ STATUS_RPC = PrinterRpc('~M119\r\n', StatusResponse.parse)
 PAUSE_RPC = PrinterRpc('~M25\r\n', EmptyResponse.parse)
 RESUME_RPC = PrinterRpc('~M24\r\n', EmptyResponse.parse)
 ABORT_RPC = PrinterRpc('~M26\r\n', EmptyResponse.parse)
-REQUEST_CONTROL_RPC = PrinterRpc('~M601 S1\r\n', EmptyResponse.validating_parser(re.compile('Control Success')))
+REQUEST_CONTROL_RPC = PrinterRpc(
+    '~M601 S1\r\n',
+    EmptyResponse.validating_parser(
+      re.compile('Control Success'),
+      RequestControlFailedException))
 RELEASE_CONTROL_RPC = PrinterRpc('~M602\r\n', EmptyResponse.parse)
 
 @dataclass
@@ -457,11 +485,12 @@ class CameraStream:
     if self._camera_connection:
       raise RuntimError('Already connected')
     try:
-      self._camera_connection = http.client.HTTPConnection(self._ip, 8080)
+      self._camera_connection = http.client.HTTPConnection(self._ip, 8080, timeout=30)
       self._camera_connection.request("GET", "/?action=stream")
       self._camera_response = self._camera_connection.getresponse()
       self._reading_thread = threading.Thread(
           target=self.consume_camera_bytes,
+          daemon=True
       )
       self._reading_thread.start()
     except Exception as e:

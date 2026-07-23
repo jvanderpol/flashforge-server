@@ -3,11 +3,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import argparse
+import faulthandler
 import http.server
 import json
 import logging
 import printer as printer_lib
 import queue
+import signal
+import tempfile
 import threading
 import urllib.parse
 
@@ -60,6 +63,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
         '/status': self._status,
         '/stream': self._stream,
         '/temp': self._temp,
+        '/thread_dump': self._thread_dump,
     }
     super().__init__(*args, **kwargs)
 
@@ -99,6 +103,13 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   def _temp(self):
     return self._to_json(self._get_printer().get_temp())
 
+  @simple_handler(content_type='text/plain')
+  def _thread_dump(self):
+    with tempfile.TemporaryFile(mode='w+t') as tmp:
+      faulthandler.dump_traceback(file=tmp, all_threads=True)
+      tmp.seek(0)
+      return tmp.read()
+
   @simple_handler(content_type='application/json')
   def _progress(self):
     printer = self._get_printer()
@@ -123,6 +134,11 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   @simple_handler(content_type='application/json')
   def _status(self):
     return self._to_json(self._get_printer().get_status())
+
+  @simple_handler()
+  def _release_control(self):
+    self._get_printer().release_control()
+    return ''
 
   @simple_handler()
   def _pause(self):
@@ -244,6 +260,8 @@ class FileCache:
     return cache_entry.content
 
 if __name__ == "__main__":
+  faulthandler.register(signal.SIGUSR1)
+
   logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 
   parser = argparse.ArgumentParser()
