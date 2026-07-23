@@ -203,6 +203,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
     self.send_response(200)
     if content_type:
       self.send_header('Content-type', content_type)
+    self.send_header('Cache-Control', 'public, max-age=3600')
     self.end_headers()
     self.wfile.write(file_bytes)
 
