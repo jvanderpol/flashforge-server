@@ -216,7 +216,7 @@ class FlashForgeRequestHandler(http.server.BaseHTTPRequestHandler):
   def _get_ip(self):
     ip = self._get_first_query_param('ip') or self.server.default_printer_ip
     if not ip:
-      raise RuntimError('No ip or default ip provided')
+      raise RuntimeError('No ip or default ip provided')
     return ip
 
 
